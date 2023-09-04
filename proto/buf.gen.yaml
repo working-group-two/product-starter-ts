@@ -1,0 +1,7 @@
+version: v1
+plugins:
+  - plugin: es
+    opt: target=ts
+    out: ../src/proto
+# Run this command to generate the code:
+# npx buf generate
