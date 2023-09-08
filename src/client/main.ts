@@ -1,14 +1,19 @@
+import { createPromiseClient } from "@connectrpc/connect";
+import { createConnectTransport } from "@connectrpc/connect-node";
+import { SmsService } from "../../gen/wgtwo/sms/v1/sms_connect";
 import {
     SendTextToSubscriberRequest,
-    SendMessageResponse
-} from "../proto/wgtwo/sms/v1/sms_pb";
+    SendMessageResponse,
+    
+} from "../../gen/wgtwo/sms/v1/sms_pb";
 
-import {
-    Client,
-    credentials
-} from "@grpc/grpc-js";
+const transport = createConnectTransport({
+    baseUrl: "https://sandbox.api.wgtwo.com:443",
+    httpVersion: "1.1",
+    useBinaryFormat: false,
+});
 
-(async function main() {
+async function main() {
     const smsRequest = new SendTextToSubscriberRequest();
     smsRequest.content = "Hello, this is your SMS content.";
     smsRequest.toSubscriber = "+1234567890"; // The recipient's international phone number
@@ -20,32 +25,12 @@ import {
     } catch (error) {
         console.error("Error sending SMS:", error);
     }
-})()
+}
 
 async function sendSMS(smsRequest: SendTextToSubscriberRequest): Promise<SendMessageResponse> {
-    const client = new Client("sandbox.api.wgtwo.com:443", credentials.createSsl());
-
-    try {
-        const serialize = (request: SendTextToSubscriberRequest) => Buffer.from(JSON.stringify(request));
-        const deserialize = (response: Buffer) => JSON.parse(response.toString());
-        return new Promise((resolve, reject) => {
-            client.makeUnaryRequest(
-                "/wgtwo.sms.v1.SmsService/SendTextToSubscriber",
-                serialize,
-                deserialize,
-                smsRequest,
-                (err, value) => {
-                    client.close();
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve(value);
-                    }
-                }
-            );
-        });
-    } catch (error) {
-        client.close();
-        throw error;
-    }
+    const client = createPromiseClient(SmsService, transport);
+    const res = await client.sendTextToSubscriber(smsRequest);
+    return res;
 }
+
+void main();
