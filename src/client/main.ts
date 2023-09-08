@@ -11,12 +11,15 @@ const transport = createGrpcTransport({
     baseUrl: "https://sandbox.api.wgtwo.com:443",
     httpVersion: "2",
 });
+const client = createPromiseClient(SmsService, transport);
+
 
 async function main() {
-    const smsRequest = new SendTextToSubscriberRequest();
-    smsRequest.content = "Hello, this is your SMS content.";
-    smsRequest.toSubscriber = "+1234567890"; // The recipient's international phone number
-    smsRequest.fromAddress = "YourSenderID";   // Your sender ID
+    const smsRequest = new SendTextToSubscriberRequest({
+        content: "Hello, this is your SMS content.",
+        toSubscriber: "+1234567890", // The recipient's international phone number
+        fromAddress: "YourSenderID",   // Your sender ID
+    });
 
     try {
         const response = await sendSMS(smsRequest);
@@ -27,9 +30,7 @@ async function main() {
 }
 
 async function sendSMS(smsRequest: SendTextToSubscriberRequest): Promise<SendMessageResponse> {
-    const client = createPromiseClient(SmsService, transport);
-    const res = await client.sendTextToSubscriber(smsRequest);
-    return res;
+    return client.sendTextToSubscriber(smsRequest);
 }
 
 void main();
