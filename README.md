@@ -3,11 +3,10 @@
 ## Build typescript from proto
 ```
 npm i
-cd proto
-npx buf generate
+npm run generate
 ```
 
 ## Run project
 ```
-npx tsx ./src/client/main.ts
+npm start
 ```
