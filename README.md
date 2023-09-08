@@ -4,6 +4,11 @@ Our API is published at the [Buf Schema Registry > wgtwo](https://buf.build/wgtw
 
 This is currently experimental, and we are looking for feedback.
 
+Our API can be installed with npm:
+```shell
+npm install @buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts@latest
+```
+
 ## Build typescript from proto
 ```
 npm install
