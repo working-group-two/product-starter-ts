@@ -1,15 +1,14 @@
-import {SendTextFromSubscriberRequest} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.d"
-import {CallCredentials, ChannelCredentials, credentials} from "@grpc/grpc-js";
-import {SmsServiceClient} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.client";
-import {GrpcTransport} from '@protobuf-ts/grpc-transport';
-import {Metadata} from "@grpc/grpc-js/src/metadata";
-import {CallMetadataOptions} from "@grpc/grpc-js/src/call-credentials";
-import {OAuth2Client, OAuth2Fetch} from '@badgateway/oauth2-client';
+import { SendTextFromSubscriberRequest } from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.d"
+import { StreamConsentChangeEventsRequest, AckConsentChangeEventRequest, ConsentAdded } from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb.d"
+import { CallCredentials, ChannelCredentials, credentials } from "@grpc/grpc-js";
+import { SmsServiceClient } from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.client";
+import { ConsentEventServiceClient } from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb.client";
+import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+import { Metadata } from "@grpc/grpc-js/src/metadata";
+import { CallMetadataOptions } from "@grpc/grpc-js/src/call-credentials";
+import { OAuth2Client, OAuth2Fetch } from '@badgateway/oauth2-client';
 
 async function main() {
-    const sendFrom = process.env.SEND_FROM as string
-    const sendTo = process.env.SEND_TO as string
-
 
     const oAuth2Client = new OAuth2Client({
         server: 'https://id.wgtwo.com/',
@@ -46,18 +45,38 @@ async function main() {
         ),
     });
 
-
-    // Create a SMS client
     const stub: SmsServiceClient = new SmsServiceClient(transport);
 
-    const request: SendTextFromSubscriberRequest = {
-        content: "Hello, world",
-        toAddress: sendTo,
-        fromSubscriber: sendFrom,
-    }
+    const consentEventClient: ConsentEventServiceClient = new ConsentEventServiceClient(transport);
 
-    const call = await stub.sendTextFromSubscriber(request, {timeout: 1000})
-    console.log(call.response.messageId)
+    const consentEventRequest: StreamConsentChangeEventsRequest = {};
+
+    const consentEventCall = consentEventClient.streamConsentChangeEvents(consentEventRequest);
+    consentEventCall.responses.onMessage(async (consentEvent) => {
+        console.log(consentEvent.consentChangeEvent);
+
+        if (consentEvent.consentChangeEvent?.type?.oneofKind === "added" && consentEvent.consentChangeEvent.target?.oneofKind === "number") {
+            const number = consentEvent.consentChangeEvent.target.number.e164;
+
+            const smsRequest: SendTextFromSubscriberRequest = {
+                content: "Hello, world",
+                toAddress: number,
+                fromSubscriber: number,
+            }
+
+            const sendSmsCall = await stub.sendTextFromSubscriber(smsRequest, { timeout: 5000 });
+            console.log(sendSmsCall.response.messageId)
+
+            const ackRequest: AckConsentChangeEventRequest = {
+                ackInfo: consentEvent!!.metadata!!.ackInfo,
+            };
+
+            const ackResponse = await consentEventClient.ackConsentChangeEvent(ackRequest);
+            console.log(ackResponse.response);
+        }
+    });
+
+    await consentEventCall;
 }
 
 void main();
