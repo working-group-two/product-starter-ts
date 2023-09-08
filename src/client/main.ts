@@ -1,51 +1,70 @@
-import {
-    SendTextToSubscriberRequest,
-    SendMessageResponse
-} from "../proto/wgtwo/sms/v1/sms_pb";
+import {SendTextFromSubscriberRequest} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.d"
+import {ChannelCredentials, credentials} from "@grpc/grpc-js";
+import {SmsServiceClient} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.client";
+import {ConsentEventServiceClient } from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb.client";
+import {GrpcTransport} from '@protobuf-ts/grpc-transport';
+import {StreamConsentChangeEventsResponse} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb";
+import {Wg2CallCredentials} from "./oauth";
 
-import {
-    Client,
-    credentials
-} from "@grpc/grpc-js";
+const transport = new GrpcTransport({
+    host: "api.wgtwo.com:443",
+    channelCredentials: credentials.combineChannelCredentials(
+        ChannelCredentials.createSsl(),
+        Wg2CallCredentials,
+    ),
+});
 
-(async function main() {
-    const smsRequest = new SendTextToSubscriberRequest();
-    smsRequest.content = "Hello, this is your SMS content.";
-    smsRequest.toSubscriber = "+1234567890"; // The recipient's international phone number
-    smsRequest.fromAddress = "YourSenderID";   // Your sender ID
+const smsClient = new SmsServiceClient(transport);
+const consentEventClient = new ConsentEventServiceClient(transport);
 
-    try {
-        const response = await sendSMS(smsRequest);
-        console.log("SMS sent:", response);
-    } catch (error) {
-        console.error("Error sending SMS:", error);
+async function sendSms(from: string, to: string, content: string) {
+    const smsRequest: SendTextFromSubscriberRequest = {
+        fromSubscriber: from,
+        toAddress: to,
+        content: content,
     }
-})()
 
-async function sendSMS(smsRequest: SendTextToSubscriberRequest): Promise<SendMessageResponse> {
-    const client = new Client("sandbox.api.wgtwo.com:443", credentials.createSsl());
+    const sendSmsCall = await smsClient.sendTextFromSubscriber(smsRequest, {timeout: 5000});
+    console.log("SMS sent: " + sendSmsCall.response.description + " " + sendSmsCall.response.messageId)
+}
 
-    try {
-        const serialize = (request: SendTextToSubscriberRequest) => Buffer.from(JSON.stringify(request));
-        const deserialize = (response: Buffer) => JSON.parse(response.toString());
-        return new Promise((resolve, reject) => {
-            client.makeUnaryRequest(
-                "/wgtwo.sms.v1.SmsService/SendTextToSubscriber",
-                serialize,
-                deserialize,
-                smsRequest,
-                (err, value) => {
-                    client.close();
-                    if (err) {
-                        reject(err);
-                    } else {
-                        resolve(value);
-                    }
-                }
-            );
-        });
-    } catch (error) {
-        client.close();
-        throw error;
+async function ackConsentEvent(response: StreamConsentChangeEventsResponse) {
+    const ackCall = await consentEventClient.ackConsentChangeEvent({
+        ackInfo: response!!.metadata!!.ackInfo,
+    });
+    console.log(`Ack response${JSON.stringify(ackCall.response)}`);
+}
+
+async function handleConsentEvent(response: StreamConsentChangeEventsResponse) {
+    console.log(`Got new consent event: ${JSON.stringify(response)}`)
+
+    if (response.consentChangeEvent?.type?.oneofKind === "added" && response.consentChangeEvent.target?.oneofKind === "number") {
+        const number = response.consentChangeEvent.target.number.e164;
+
+        // Send SMS from subscriber to subscriber
+        await sendSms(number, number, "A product has been added to your subscription")
+
+        await ackConsentEvent(response);
     }
 }
+
+async function main() {
+
+    const consentEventCall = consentEventClient.streamConsentChangeEvents({});
+
+    while (true) {
+        console.log("Setting up new stream")
+        try {
+            consentEventCall.responses.onMessage(async (response) => {
+                await handleConsentEvent(response);
+            });
+            await consentEventCall;
+        } catch (e) {
+            console.log("Error: " + e)
+            // Wait 5 seconds before reconnecting
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+    }
+}
+
+void main();
