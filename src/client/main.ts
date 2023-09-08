@@ -1,16 +1,15 @@
 import { createPromiseClient } from "@connectrpc/connect";
-import { createConnectTransport } from "@connectrpc/connect-node";
+import { createGrpcTransport } from "@connectrpc/connect-node";
 import { SmsService } from "../../gen/wgtwo/sms/v1/sms_connect";
 import {
     SendTextToSubscriberRequest,
     SendMessageResponse,
-    
+
 } from "../../gen/wgtwo/sms/v1/sms_pb";
 
-const transport = createConnectTransport({
+const transport = createGrpcTransport({
     baseUrl: "https://sandbox.api.wgtwo.com:443",
-    httpVersion: "1.1",
-    useBinaryFormat: false,
+    httpVersion: "2",
 });
 
 async function main() {
