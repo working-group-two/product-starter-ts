@@ -13,7 +13,6 @@ const transport = createGrpcTransport({
 });
 const client = createPromiseClient(SmsService, transport);
 
-
 async function main() {
     const smsRequest = new SendTextToSubscriberRequest({
         content: "Hello, this is your SMS content.",
