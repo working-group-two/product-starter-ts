@@ -43,9 +43,8 @@ async function handleConsentEvent(response: StreamConsentChangeEventsResponse) {
 
         // Send SMS from subscriber to subscriber
         await sendSms(number, number, "A product has been added to your subscription")
-
-        await ackConsentEvent(response);
     }
+    await ackConsentEvent(response);
 }
 
 async function main() {
