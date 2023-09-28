@@ -1,9 +1,11 @@
-import {SendTextFromSubscriberRequest} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.d"
 import {ChannelCredentials, credentials} from "@grpc/grpc-js";
-import {SmsServiceClient} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/sms/v1/sms_pb.client";
-import {ConsentEventServiceClient } from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb.client";
 import {GrpcTransport} from '@protobuf-ts/grpc-transport';
 import {StreamConsentChangeEventsResponse} from "@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb";
+
+import {LOG} from "./logger";
+import {SmsClient} from "./sms";
+import {ConsentEvents} from "./consentEvents";
+import {AtShutdown} from "./shutdown";
 import {Wg2CallCredentials} from "./oauth";
 
 const transport = new GrpcTransport({
@@ -14,56 +16,48 @@ const transport = new GrpcTransport({
     ),
 });
 
-const smsClient = new SmsServiceClient(transport);
-const consentEventClient = new ConsentEventServiceClient(transport);
+AtShutdown(() => transport.close())
 
-async function sendSms(from: string, to: string, content: string) {
-    const smsRequest: SendTextFromSubscriberRequest = {
-        fromSubscriber: from,
-        toAddress: to,
-        content: content,
-    }
-
-    const sendSmsCall = await smsClient.sendTextFromSubscriber(smsRequest, {timeout: 5000});
-    console.log("SMS sent: " + sendSmsCall.response.description + " " + sendSmsCall.response.messageId)
-}
-
-async function ackConsentEvent(response: StreamConsentChangeEventsResponse) {
-    const ackCall = await consentEventClient.ackConsentChangeEvent({
-        ackInfo: response!!.metadata!!.ackInfo,
-    });
-    console.log(`Ack response${JSON.stringify(ackCall.response)}`);
-}
+const smsClient = new SmsClient(transport)
+const consentEvents = new ConsentEvents(transport)
 
 async function handleConsentEvent(response: StreamConsentChangeEventsResponse) {
-    console.log(`Got new consent event: ${JSON.stringify(response)}`)
+    LOG.info(`Got new consent event: ${JSON.stringify(response)}`)
 
-    if (response.consentChangeEvent?.type?.oneofKind === "added" && response.consentChangeEvent.target?.oneofKind === "number") {
-        const number = response.consentChangeEvent.target.number.e164;
+    let event = response.consentChangeEvent
 
-        // Send SMS from subscriber to subscriber
-        await sendSms(number, number, "A product has been added to your subscription")
+    if (event?.target?.oneofKind !== "number") {
+        LOG.info(`Skip consent of target type="${event?.target?.oneofKind}"`)
+        return
     }
-    await ackConsentEvent(response);
+
+    let number = event.target.number.e164
+    switch (event?.type?.oneofKind) {
+        case "added":
+            LOG.info(`Consent added for ${number}`)
+            let sms = {
+                from: number,
+                to: number,
+                content: "A product has been added to your subscription"
+            };
+            await smsClient.sendSms(sms)
+            break
+
+        case "updated":
+            LOG.info(`Consent updated for ${number}`)
+            break
+
+        case "revoked":
+            LOG.info(`Consent removed for ${number}`)
+            break
+    }
 }
 
 async function main() {
-
-    const consentEventCall = consentEventClient.streamConsentChangeEvents({});
-
-    while (true) {
-        console.log("Setting up new stream")
-        try {
-            consentEventCall.responses.onMessage(async (response) => {
-                await handleConsentEvent(response);
-            });
-            await consentEventCall;
-        } catch (e) {
-            console.log("Error: " + e)
-            // Wait 5 seconds before reconnecting
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-    }
+    await consentEvents.stream({
+        request: {},
+        callback: handleConsentEvent,
+    })
 }
 
 void main();
