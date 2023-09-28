@@ -19,3 +19,15 @@ npm install
 ```shell
 npx tsx ./src/client/main.ts
 ```
+
+## Linting and pre-commit hooks
+
+### Enable pre-commit hooks
+```shell
+pre-commit install
+```
+
+### Run eslint
+```shell
+npm run lint
+```
