@@ -9,7 +9,7 @@ Our API can be installed with npm:
 npm install @buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts@latest
 ```
 
-## Build typescript from proto
+## Build project
 ```
 npm install
 ```
