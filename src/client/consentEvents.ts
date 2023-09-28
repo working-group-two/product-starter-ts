@@ -12,10 +12,16 @@ import { LOG } from './logger'
 
 export class ConsentEvents {
   private readonly client: ConsentEventServiceClient
+  private readonly request: StreamConsentChangeEventsRequest
   private readonly callback: (response: StreamConsentChangeEventsResponse) => Promise<void>
 
-  constructor (transport: GrpcTransport, callback: (response: StreamConsentChangeEventsResponse) => Promise<void>) {
+  constructor (
+    transport: GrpcTransport,
+    request: StreamConsentChangeEventsRequest,
+    callback: (response: StreamConsentChangeEventsResponse) => Promise<void>
+  ) {
     this.client = new ConsentEventServiceClient(transport)
+    this.request = request
     this.callback = callback
   }
 
@@ -28,12 +34,10 @@ export class ConsentEvents {
     LOG.info(`Ack status: ${status}`)
   }
 
-  async stream ({ request }: {
-    request: StreamConsentChangeEventsRequest
-  }): Promise<void> {
+  async stream (): Promise<void> {
     while (true) {
       LOG.info('Starting new stream')
-      const call = this.client.streamConsentChangeEvents(request)
+      const call = this.client.streamConsentChangeEvents(this.request)
       try {
         LOG.debug('Waiting for consent events')
         call.responses.onMessage((response) => {

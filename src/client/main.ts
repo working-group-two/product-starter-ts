@@ -1,6 +1,9 @@
 import { ChannelCredentials, credentials } from '@grpc/grpc-js'
 import { GrpcTransport } from '@protobuf-ts/grpc-transport'
-import { type StreamConsentChangeEventsResponse } from '@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb'
+import {
+  type StreamConsentChangeEventsRequest,
+  type StreamConsentChangeEventsResponse
+} from '@buf/wgtwo_wgtwoapis.community_timostamm-protobuf-ts/wgtwo/consents/v1/consent_events_pb'
 
 import { LOG } from './logger'
 import { SmsClient } from './sms'
@@ -19,7 +22,9 @@ const transport = new GrpcTransport({
 AtShutdown(() => { transport.close() })
 
 const smsClient = new SmsClient(transport)
-const consentEvents = new ConsentEvents(transport)
+
+const request: StreamConsentChangeEventsRequest = {}
+const consentEvents = new ConsentEvents(transport, request, handleConsentEvent)
 
 async function handleConsentEvent (response: StreamConsentChangeEventsResponse): Promise<void> {
   LOG.info(`Got new consent event: ${JSON.stringify(response)}`)
@@ -57,10 +62,7 @@ async function handleConsentEvent (response: StreamConsentChangeEventsResponse):
 }
 
 async function main (): Promise<void> {
-  await consentEvents.stream({
-    request: {},
-    callback: handleConsentEvent
-  })
+  await consentEvents.stream()
 }
 
 void main()

@@ -26,8 +26,3 @@ npx tsx ./src/client/main.ts
 ```shell
 pre-commit install
 ```
-
-### Run eslint
-```shell
-npm run lint
-```
